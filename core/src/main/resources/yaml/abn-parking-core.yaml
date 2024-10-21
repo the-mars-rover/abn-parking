@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: ABN Parking Core API
+  description: The API interface for the core ABN Parking system
+  version: 1.0.0
+servers:
+  - url: 'https://localhost:8080'
+    description: Local server
+paths:
+
+  /sessions:
+    get:
+      summary: Get the current open parking sessions using the license plate of a vehicle
+      operationId: getOpenSession
+      parameters:
+        - name: license
+          in: query
+          description: The license plate of the vehicle for which to retrieve any open parking session
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetOpenSessionResponse'
+        '404':
+          description: No open parking sessions found for the given license plate
+
+  /sessions/start:
+    post:
+      summary: Start a new parking session for a vehicle
+      operationId: startParkingSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartParkingSessionRequest'
+      responses:
+        '200':
+          description: Parking session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartParkingSessionResponse'
+
+  /sessions/{sessionId}/stop:
+    post:
+      summary: Stop a parking session for a vehicle
+      operationId: stopParkingSession
+      parameters:
+        - name: sessionId
+          in: path
+          description: The ID of the parking session to stop
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Parking session stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+
+  /observations:
+    post:
+      summary: Add new observations
+      operationId: addObservations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddObservationsRequest'
+      responses:
+        '200':
+          description: Observations added
+
+  /invoices:
+    get:
+      summary: Get the invoices for a vehicle with a given license plate
+      operationId: getInvoices
+      parameters:
+        - name: license
+          in: query
+          description: The license plate of the vehicle for which to retrieve any invoices
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetInvoicesResponse'
+
+  /invoices/{invoiceId}/pay:
+    post:
+      summary: Pay an invoice
+      operationId: payInvoice
+      parameters:
+        - name: invoiceId
+          in: path
+          description: The ID of the invoice to pay
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Invoice paid
+
+
+components:
+  schemas:
+    GetOpenSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+          format: int64
+        license:
+          type: string
+        street:
+          type: string
+        startInstant:
+          type: string
+          format: date-time
+
+    StartParkingSessionRequest:
+      type: object
+      properties:
+        license:
+          type: string
+        street:
+          type: string
+      required:
+        - license
+        - street
+
+
+    StartParkingSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+          format: int64
+        license:
+          type: string
+        street:
+          type: string
+        startInstant:
+          type: string
+          format: date-time
+
+    AddObservationsRequest:
+      type: object
+      properties:
+        observations:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddObservationsRequestObservation'
+      required:
+        - observations
+
+    AddObservationsRequestObservation:
+      type: object
+      properties:
+        license:
+          type: string
+        street:
+          type: string
+        observationInstant:
+          type: string
+          format: date-time
+      required:
+        - license
+        - street
+        - observationInstant
+
+    GetInvoicesResponse:
+      type: object
+      properties:
+        invoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+      required:
+        - invoices
+
+    Invoice:
+      type: object
+      properties:
+        invoiceId:
+          type: integer
+          format: int64
+        invoiceInstant:
+          type: string
+          format: date-time
+        session:
+          $ref: '#/components/schemas/Session'
+        observation:
+          $ref: '#/components/schemas/Observation'
+        amount:
+          type: integer
+          format: int64
+        paid:
+          type: boolean
+
+    Session:
+      type: object
+      properties:
+        license:
+          type: string
+        street:
+          type: string
+        startInstant:
+          type: string
+          format: date-time
+        endInstant:
+          type: string
+          format: date-time
+
+    Observation:
+      type: object
+      properties:
+        license:
+          type: string
+        street:
+          type: string
+        observationInstant:
+          type: string
+          format: date-time

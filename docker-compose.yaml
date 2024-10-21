@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  core:
+    container_name: abn-parking-core
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+    ports:
+      - 8080:8080
+    depends_on:
+      - database
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/abn_parking
+      SPRING_DATASOURCE_USERNAME: abn_parking_user
+      SPRING_DATASOURCE_PASSWORD: test@123
+
+  database:
+    container_name: abn-parking-database
+    image: postgres:latest
+    volumes:
+      - ./core/src/test/resources/sql/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - parking_database_volume:/var/lib/mysql
+    restart: always
+    environment:
+      POSTGRES_DB: abn_parking
+      POSTGRES_USER : abn_parking_user
+      POSTGRES_PASSWORD: test@123
+    ports:
+      - 5432:5432
+
+volumes:
+  parking_database_volume: {}
