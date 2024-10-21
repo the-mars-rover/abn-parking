@@ -108,12 +108,14 @@ public class SessionsService {
 
         var current = startDateTime;
         while (current.isBefore(endDateTime)) {
+            // 21-10-2024 08:00
             var periodStart = current.toLocalDate().atTime(LocalTime.of(parkingScheduleProperties.getStartTime().getHour(), parkingScheduleProperties.getStartTime().getMinute()));
+            // 22-10-2024 21:00
             var periodEnd = current.toLocalDate().atTime(LocalTime.of(parkingScheduleProperties.getEndTime().getHour(), parkingScheduleProperties.getEndTime().getMinute()));
 
             // Adjust period boundaries if session starts or ends in the middle of the period
-            var effectiveStart = current.isAfter(periodStart) ? current : periodStart;
-            var effectiveEnd = endDateTime.isBefore(periodEnd) ? endDateTime : periodEnd;
+            var effectiveStart = current.isAfter(periodStart) ? current : periodStart; // 21-10-2024 08:00
+            var effectiveEnd = endDateTime.isBefore(periodEnd) ? endDateTime : periodEnd; // 21-10-2024 21:00
 
             // Calculate the overlap between the effective session time and the chargeable period
             if (!effectiveStart.isAfter(effectiveEnd)) {
