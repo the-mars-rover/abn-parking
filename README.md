@@ -37,7 +37,19 @@ The Parking system consists of the following components:
 
 ### Demo
 
-To run the entire system, simply run the following command (note that ports 5432, 8080, and 8081 must be available):
+To run the entire system, start by building each maven project:
+
+```bash
+  cd core
+  mvn clean install
+```
+
+```bash
+  cd admin
+  mvn clean install
+```
+
+Then, simply run the following command (note that ports 5432, 8080, and 8081 must be available):
 
 ```bash
 docker-compose up
