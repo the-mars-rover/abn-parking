@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 @Setter
 public class ObservationsProcessProperties {
     /**
-     * The cron expression which defines the schedule for the fine task to run.
+     * The interval (in minutes) which defines how often the fine task to run. Defaults to 5.
      */
-    String cron = "0 0 0 * * *";
+    int interval = 1;
 }

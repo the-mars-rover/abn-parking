@@ -10,13 +10,16 @@ import abn.parking.core.repository.ParkingSessionRepository;
 import abn.parking.core.repository.VehicleObservationRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ObservationsService {
     private final VehicleObservationRepository vehicleObservationRepository;
     private final ParkingSessionRepository parkingSessionRepository;
@@ -40,7 +43,7 @@ public class ObservationsService {
     }
 
     @Transactional
-    @Scheduled(cron = "${observations.process.cron}")
+    @Scheduled(fixedDelayString = "${observations.process.interval}", timeUnit = TimeUnit.MINUTES)
     public void verifyObservations() {
         // Find all unverified observations that
         var unverifiedObservations = vehicleObservationRepository.findAllByVerifiedIsFalse();
@@ -63,6 +66,10 @@ public class ObservationsService {
     private void createInvoice(VehicleObservation observation) {
         var rate = parkingRateRepository.findByStreet(observation.getStreet()).map(ParkingRate::getFineRate)
                 .orElse(0); // if no fine rate was found for the given street, the rate is 0
+
+        if (rate == 0) {
+            return;
+        }
 
         var invoice = new ParkingInvoice();
         invoice.setObservation(observation);

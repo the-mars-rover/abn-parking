@@ -10,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
-import java.math.BigDecimal;
-
 @Controller
 @RequiredArgsConstructor
 public class SessionsController implements SessionsApi {
