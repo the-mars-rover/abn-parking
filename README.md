@@ -33,4 +33,6 @@ docker-compose up
 * Used contract-first approach to design the REST API. This means the Open API specifications were created first and then interfaces were generated from the specifications.
 * Used mutation testing (with a coverage of 85%) to ensure that the tests are effective. Mutation testing is a technique to test the quality of the tests. It works by making small changes to the source code and then running the tests. If the tests fail, then the tests are effective.
 * Ideally unit, integration, and end-to-end tests would be present. However, due to time constraints, and the smallish size of the application, only integration testing was done. However, the integration tests effectively cover more than 85% of scenarios
-* 
+* The only logging present is: logs for incoming requests, default spring logs for errors, and logs for scheduled tasks. The intention was not to pollute the logs with unnecessary information until we know it is necessary.
+* The only exception currently handled is the NoSuchElement exception. This is because the default exception handling for other exceptions does pretty much what we need it to do for now. If we need to respond with custom exceptions in future, we can do so easily.
+* Security needs to be added. This was omitted due to time constraints.
