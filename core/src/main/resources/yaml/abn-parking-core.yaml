@@ -1,38 +1,24 @@
 openapi: 3.1.0
 info:
-  title: ABN Parking Core API
-  description: The API interface for the core ABN Parking system
+  title: Parking Core API
+  description: The API interface for the core Parking system
   version: 1.0.0
 servers:
   - url: 'https://localhost:8080'
     description: Local server
 paths:
 
-  /sessions:
-    get:
-      summary: Get the current open parking sessions using the license plate of a vehicle
-      operationId: getOpenSession
-      parameters:
-        - name: license
-          in: query
-          description: The license plate of the vehicle for which to retrieve any open parking session
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GetOpenSessionResponse'
-        '404':
-          description: No open parking sessions found for the given license plate
-
-  /sessions/start:
+  /sessions/{license}/start:
     post:
       summary: Start a new parking session for a vehicle
       operationId: startParkingSession
+      parameters:
+        - name: license
+          in: path
+          description: The license of the vehicle to stop the parking session for
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -47,18 +33,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/StartParkingSessionResponse'
 
-  /sessions/{sessionId}/stop:
+  /sessions/{license}/stop:
     post:
       summary: Stop a parking session for a vehicle
       operationId: stopParkingSession
       parameters:
-        - name: sessionId
+        - name: license
           in: path
-          description: The ID of the parking session to stop
+          description: The license of the vehicle to stop the parking session for
           required: true
           schema:
-            type: integer
-            format: int64
+            type: string
       responses:
         '200':
           description: Parking session stopped
@@ -119,38 +104,18 @@ paths:
 
 components:
   schemas:
-    GetOpenSessionResponse:
-      type: object
-      properties:
-        sessionId:
-          type: integer
-          format: int64
-        license:
-          type: string
-        street:
-          type: string
-        startInstant:
-          type: string
-          format: date-time
-
     StartParkingSessionRequest:
       type: object
       properties:
-        license:
-          type: string
         street:
           type: string
       required:
-        - license
         - street
 
 
     StartParkingSessionResponse:
       type: object
       properties:
-        sessionId:
-          type: integer
-          format: int64
         license:
           type: string
         street:

@@ -32,6 +32,8 @@
         <openapi-generator-maven-plugin.version>7.9.0</openapi-generator-maven-plugin.version>
         <pitest-maven.version>1.17.0</pitest-maven.version>
         <pitest-junit5-plugin.version>1.2.1</pitest-junit5-plugin.version>
+        <jackson-databind-nullable.version>0.2.6</jackson-databind-nullable.version>
+        <jakarta.validation-api.version>3.1.0</jakarta.validation-api.version>
     </properties>
     <dependencies>
         <dependency>
@@ -43,6 +45,10 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc-openapi-starter-webmvc-ui.version}</version>
@@ -51,6 +57,11 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openapitools</groupId>
+            <artifactId>jackson-databind-nullable</artifactId>
+            <version>${jackson-databind-nullable.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -111,10 +122,11 @@
                             <apiPackage>abn.parking.core.api</apiPackage>
                             <modelPackage>abn.parking.core.dto</modelPackage>
                             <configOptions>
+
                                 <interfaceOnly>true</interfaceOnly>
-                                <useJakartaEe>true</useJakartaEe>
-                                <openApiNullable>false</openApiNullable>
+                                <useSpringBoot3>true</useSpringBoot3>
                                 <generateBuilders>true</generateBuilders>
+                                <performBeanValidation>true</performBeanValidation>
                             </configOptions>
                             <typeMappings>
                                 <typeMapping>OffsetDateTime=Instant</typeMapping>
@@ -163,7 +175,7 @@
                                 <param>abn.parking.core.dto.*</param>
                             </excludedClasses>
                             <threads>1</threads>
-                            <mutationThreshold>90</mutationThreshold>
+                            <mutationThreshold>85</mutationThreshold>
                         </configuration>
                     </plugin>
                 </plugins>

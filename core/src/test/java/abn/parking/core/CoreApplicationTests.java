@@ -1,5 +1,6 @@
 package abn.parking.core;
 
+import abn.parking.core.configuration.TestClockConfiguration;
 import abn.parking.core.service.ObservationsService;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
@@ -8,13 +9,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.jdbc.Sql;
+
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// the TestClockConfiguration is the only bean where we use a test bean instead of the real one
+// this is because we want to control the time in the tests
+@Import(TestClockConfiguration.class)
 @Sql(scripts = {"/sql/init.sql"}, executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = {"/sql/clean.sql"}, executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class CoreApplicationTests {
@@ -22,6 +27,7 @@ class CoreApplicationTests {
     @LocalServerPort
     private Integer port;
 
+    // the only reason we autowire this is to call the verifyObservations() method, which is usually scheduled.
     @Autowired
     private ObservationsService observationsService;
 
@@ -41,24 +47,15 @@ class CoreApplicationTests {
 
     @Test
     void givenLicenseAndStreet_whenStartSession_thenSessionStarted() {
-        var requestSpecification = given().body("""
+        var requestSpecification = given().pathParam("license", "TEST_LICENSE").body("""
                 {
-                    "license": "TEST_LICENSE",
                     "street": "Europaplein"
                 }
                 """).contentType(ContentType.JSON);
 
-        var response = requestSpecification.when().post("/sessions/start");
+        var response = requestSpecification.when().post("/sessions/{license}/start");
 
         response.then().statusCode(200)
-                .body("sessionId", notNullValue())
-                .body("license", equalTo("TEST_LICENSE"))
-                .body("street", equalTo("Europaplein"))
-                .body("startInstant", notNullValue());
-        given().param("license", "TEST_LICENSE")
-                .when().get("/sessions")
-                .then().statusCode(200)
-                .body("sessionId", notNullValue())
                 .body("license", equalTo("TEST_LICENSE"))
                 .body("street", equalTo("Europaplein"))
                 .body("startInstant", notNullValue());
@@ -74,45 +71,64 @@ class CoreApplicationTests {
     }
 
     @Test
-    void givenStartedSessionForFreeStreet_whenSessionStopped_thenNoInvoiceCreated() {
-        var startedSessionId = given().body("""
-                {
-                    "license": "TEST_LICENSE",
-                    "street": "Free Street"
-                }
-                """).contentType(ContentType.JSON).when().post("/sessions/start").thenReturn().body().path("sessionId");
-        var requestSpecification = given().pathParam("sessionId", startedSessionId);
+    void givenStartedSessionForFreeStreetInParkingPeriod_whenSessionStoppedOneHourLater_thenNoInvoiceCreated() {
+        // Saturday 6 January 2024 20:00:00 UTC -> Saturday 6 January 2024 21:00:00 UTC (Free Street)
+        var requestSpecification = given().pathParam("license", "PARKING_FREELY");
 
-        var response = requestSpecification.when().post("/sessions/{sessionId}/stop");
+        var response = requestSpecification.when().post("/sessions/{license}/stop");
 
-        given().param("license", "TEST_LICENSE")
-                .when().get("/sessions")
-                .then().statusCode(404);
         response.then().statusCode(200).body(emptyString());
+        given().param("license", "PARKING_FREELY")
+                .when().get("/invoices")
+                .then().statusCode(200)
+                .body("invoices", emptyIterable());
+        given().pathParam("license", "PARKING_FREELY")
+                .when().post("/sessions/{license}/stop")
+                .then().statusCode(404);
     }
 
     @Test
-    void givenStartedSessionForPaidStreet_whenSessionStoppedOneMinuteLater_thenInvoiceCreated() {
-        var startedSessionId = given().param("license", "ALREADY_PARKING")
-                .when().get("/sessions")
-                .then().extract().jsonPath().getInt("sessionId");
-        var requestSpecification = given().pathParam("sessionId", startedSessionId);
+    void givenStartedSessionForPaidStreetInParkingPeriod_whenSessionStoppedOneHourLater_thenInvoiceCreatedCorrectly() {
+        // Saturday 6 January 2024 20:00:00 UTC -> Saturday 6 January 2024 21:00:00 UTC (Europalein)
+        var requestSpecification = given().pathParam("license", "ALREADY_PARKING");
 
-        var response = requestSpecification.when().post("/sessions/{sessionId}/stop");
+        var response = requestSpecification.when().post("/sessions/{license}/stop");
 
-        given().param("license", "ALREADY_PARKING")
-                .when().get("/sessions")
-                .then().statusCode(404);
         response.then().statusCode(200)
                 .body("invoiceId", notNullValue())
-                .body("amount", equalTo(100));
+                .body("amount", equalTo(6000));
         given().param("license", "ALREADY_PARKING")
                 .when().get("/invoices")
                 .then().statusCode(200)
                 .body("invoices[0].invoiceId", notNullValue())
-                .body("invoices[0].amount", equalTo(100))
+                .body("invoices[0].amount", equalTo(6000))
                 .body("invoices[0].paid", equalTo(false))
                 .body("invoices[0].session.license", equalTo("ALREADY_PARKING"));
+        given().pathParam("license", "ALREADY_PARKING")
+                .when().post("/sessions/{license}/stop")
+                .then().statusCode(404);
+    }
+
+    @Test
+    void givenStartedSessionForPaidStreetInParkingPeriod_whenSessionStoppedOneWeekLater_thenInvoiceCreatedCorrectly() {
+        // Saturday 30 December 2023 21:00:00 UTC -> Saturday 6 January 2024 21:00:00 UTC (Europalein)
+        var requestSpecification = given().pathParam("license", "PARKING_LONG");
+
+        var response = requestSpecification.when().post("/sessions/{license}/stop");
+
+        response.then().statusCode(200)
+                .body("invoiceId", notNullValue())
+                .body("amount", equalTo(468000));
+        given().param("license", "PARKING_LONG")
+                .when().get("/invoices")
+                .then().statusCode(200)
+                .body("invoices[0].invoiceId", notNullValue())
+                .body("invoices[0].amount", equalTo(468000))
+                .body("invoices[0].paid", equalTo(false))
+                .body("invoices[0].session.license", equalTo("PARKING_LONG"));
+        given().pathParam("license", "PARKING_LONG")
+                .when().post("/sessions/{license}/stop")
+                .then().statusCode(404);
     }
 
     @Test
@@ -145,12 +161,11 @@ class CoreApplicationTests {
 
     @Test
     void givenObservationsWithSessions_whenVerifyObservations_thenNoInvoicesCreated() {
-        given().body("""
+        given().pathParam("license", "TEST_LICENSE").body("""
                 {
-                    "license": "TEST_LICENSE",
                     "street": "Europaplein"
                 }
-                """).contentType(ContentType.JSON).when().post("/sessions/start").thenReturn();
+                """).contentType(ContentType.JSON).when().post("/sessions/{license}/start").thenReturn();
 
         observationsService.verifyObservations();
 
@@ -166,7 +181,7 @@ class CoreApplicationTests {
                 {
                 	"observations": [
                 		{
-                			"license": "DDD999",
+                		    "license": "DDD999",
                 			"street": "Europaplein",
                 			"observationInstant": "2021-01-01T12:00:00Z"
                 		}

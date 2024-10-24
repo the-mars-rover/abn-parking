@@ -11,47 +11,31 @@ import abn.parking.core.repository.ParkingSessionRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
 public class SessionsService {
 
+    private final Clock clock;
     private final ParkingSessionRepository parkingSessionRepository;
     private final ParkingRateRepository parkingRateRepository;
     private final ParkingInvoiceRepository parkingInvoiceRepository;
     private final ParkingScheduleProperties parkingScheduleProperties;
-    private final TransactionTemplate transactionTemplate;
 
-    public GetOpenSessionResponse getOpenSession(String license) {
-        // get session by license (the NoSuchElementException will lead to a 404 response if no session was found)
-        var session = parkingSessionRepository.findByLicenseAndEndInstantIsNull(license).orElseThrow();
-
-        // return response
-        return GetOpenSessionResponse.builder()
-                .sessionId(session.getId())
-                .license(session.getLicense())
-                .street(session.getStreet())
-                .startInstant(session.getStartInstant())
-                .build();
-    }
-
-    public StartParkingSessionResponse startParkingSession(StartParkingSessionRequest startParkingSessionRequest) {
+    public StartParkingSessionResponse startParkingSession(String license, StartParkingSessionRequest startParkingSessionRequest) {
         // create the session entity
         var session = new ParkingSession();
-        session.setLicense(startParkingSessionRequest.getLicense());
+        session.setLicense(license);
         session.setStreet(startParkingSessionRequest.getStreet());
-        session.setStartInstant(Instant.now());
+        session.setStartInstant(Instant.now(clock));
 
         // save the session
         var savedSession = parkingSessionRepository.save(session);
 
         // map the saved session to the response and return it
         return StartParkingSessionResponse.builder()
-                .sessionId(savedSession.getId())
                 .license(savedSession.getLicense())
                 .street(savedSession.getStreet())
                 .startInstant(savedSession.getStartInstant())
@@ -59,12 +43,12 @@ public class SessionsService {
     }
 
     @Transactional
-    public Invoice stopParkingSession(Long sessionId) {
-        // get the session by id (the NoSuchElementException will lead to a 404 response if no session was found)
-        var session = parkingSessionRepository.findById(sessionId).orElseThrow();
+    public Invoice stopParkingSession(String license) {
+        // get the open session by license (the NoSuchElementException will lead to a 404 response if no session was found)
+        var session = parkingSessionRepository.findByLicenseAndEndInstantIsNull(license).orElseThrow();
 
         // set the end instant for the session and save it
-        session.setEndInstant(Instant.now());
+        session.setEndInstant(Instant.now(clock));
         session = parkingSessionRepository.save(session);
 
         // calculate the amount that needs to be paid for the session
@@ -78,7 +62,7 @@ public class SessionsService {
         // create an invoice for the stopped session and save it
         var invoice = new ParkingInvoice();
         invoice.setSession(session);
-        invoice.setInvoiceInstant(Instant.now());
+        invoice.setInvoiceInstant(session.getEndInstant());
         invoice.setPaid(false);
         invoice.setAmount(amount);
         invoice = parkingInvoiceRepository.save(invoice);
@@ -103,28 +87,24 @@ public class SessionsService {
         return totalChargeableMinutes * rate;
     }
 
+    // Note: currently we are brute forcing the calculation of chargeable minutes by iterating over every minute in the session.
+    // There may be a more efficient way to calculate this, but we're keeping it simple for now.
     private Long calculateChargeableMinutes(LocalDateTime startDateTime, LocalDateTime endDateTime) {
         var totalChargeableMinutes = 0L;
 
         var current = startDateTime;
+        var parkingPeriodStart = LocalTime.of(parkingScheduleProperties.getStartTime().getHour(), parkingScheduleProperties.getStartTime().getMinute()).minus(Duration.ofMillis(1));
+        var parkingPeriodEnd = LocalTime.of(parkingScheduleProperties.getEndTime().getHour(), parkingScheduleProperties.getEndTime().getMinute());
         while (current.isBefore(endDateTime)) {
-            // 21-10-2024 08:00
-            var periodStart = current.toLocalDate().atTime(LocalTime.of(parkingScheduleProperties.getStartTime().getHour(), parkingScheduleProperties.getStartTime().getMinute()));
-            // 22-10-2024 21:00
-            var periodEnd = current.toLocalDate().atTime(LocalTime.of(parkingScheduleProperties.getEndTime().getHour(), parkingScheduleProperties.getEndTime().getMinute()));
 
-            // Adjust period boundaries if session starts or ends in the middle of the period
-            var effectiveStart = current.isAfter(periodStart) ? current : periodStart; // 21-10-2024 08:00
-            var effectiveEnd = endDateTime.isBefore(periodEnd) ? endDateTime : periodEnd; // 21-10-2024 21:00
-
-            // Calculate the overlap between the effective session time and the chargeable period
-            if (!effectiveStart.isAfter(effectiveEnd)) {
-                long minutes = ChronoUnit.MINUTES.between(effectiveStart, effectiveEnd);
-                totalChargeableMinutes += minutes;
+            if (current.toLocalTime().isAfter(parkingPeriodStart) // if the current minute is after the start of the parking period
+                    && current.toLocalTime().isBefore(parkingPeriodEnd) // and the current minute is before the end of the parking period
+                    && !current.getDayOfWeek().equals(DayOfWeek.SUNDAY)) { // and the current minute is not on a Sunday
+                totalChargeableMinutes++; // increment the total chargeable minutes
             }
 
-            // Move to the next day
-            current = current.toLocalDate().plusDays(1).atStartOfDay();
+            // Move to the next minute
+            current = current.plusMinutes(1);
         }
 
         return totalChargeableMinutes;

@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Slf4j
 public class ObservationsService {
+    private final Clock clock;
     private final VehicleObservationRepository vehicleObservationRepository;
     private final ParkingSessionRepository parkingSessionRepository;
     private final ParkingRateRepository parkingRateRepository;
@@ -45,6 +47,8 @@ public class ObservationsService {
     @Transactional
     @Scheduled(fixedDelayString = "${observations.process.interval}", timeUnit = TimeUnit.MINUTES)
     public void verifyObservations() {
+        log.info("Verifying observations | State = Finished");
+
         // Find all unverified observations that
         var unverifiedObservations = vehicleObservationRepository.findAllByVerifiedIsFalse();
 
@@ -61,6 +65,8 @@ public class ObservationsService {
             observation.setVerified(true);
             vehicleObservationRepository.save(observation);
         });
+
+        log.info("Verifying observations  | State = Finished");
     }
 
     private void createInvoice(VehicleObservation observation) {
@@ -73,7 +79,7 @@ public class ObservationsService {
 
         var invoice = new ParkingInvoice();
         invoice.setObservation(observation);
-        invoice.setInvoiceInstant(Instant.now());
+        invoice.setInvoiceInstant(Instant.now(clock));
         invoice.setAmount(rate.longValue());
         invoice.setPaid(false);
         parkingInvoiceRepository.save(invoice);
